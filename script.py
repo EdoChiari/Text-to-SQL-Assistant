@@ -8,14 +8,48 @@ import json
 
 load_dotenv()
 
-# Connect to the database
-conn = psycopg2.connect(
+# Connect to the default postgres db to list available databases
+_conn = psycopg2.connect(
     host=os.getenv("DB_HOST"),
     port=os.getenv("DB_PORT"),
-    dbname=os.getenv("DB_NAME"),
+    dbname="postgres",
     user=os.getenv("DB_USER"),
     password=os.getenv("DB_PASSWORD")
 )
+_conn.autocommit = True
+_cur = _conn.cursor()
+_cur.execute("""
+    SELECT datname FROM pg_database
+    WHERE datistemplate = false AND datname != 'postgres'
+    ORDER BY datname
+""")
+databases = [row[0] for row in _cur.fetchall()]
+_conn.close()
+
+print("Available databases:")
+for i, db in enumerate(databases, 1):
+    print(f"  {i}. {db}")
+
+while True:
+    choice = input("\nEnter the database number or name: ").strip()
+    if choice.isdigit() and 1 <= int(choice) <= len(databases):
+        selected_db = databases[int(choice) - 1]
+        break
+    elif choice in databases:
+        selected_db = choice
+        break
+    else:
+        print("Invalid choice, please try again.")
+
+# Connect to the selected database
+conn = psycopg2.connect(
+    host=os.getenv("DB_HOST"),
+    port=os.getenv("DB_PORT"),
+    dbname=selected_db,
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASSWORD")
+)
+print(f"\nConnected to: {selected_db}\n")
 
 # Read the database schema
 cursor = conn.cursor()
@@ -38,6 +72,13 @@ for table, columns in schema.items():
     schema_text += "\n".join([f"  - {col}" for col in columns])
     schema_text += "\n"
 
+print("Available tables:")
+for table, columns in schema.items():
+    print(f"\n  {table}")
+    for col in columns:
+        print(f"    - {col}")
+print()
+
 client = anthropic.Anthropic()
 session_data = []
 
@@ -48,9 +89,14 @@ while True:
     question = input("Ask a question about your database: ")
     
     if question.lower() == "exit":
+        if not session_data:
+            print("No questions asked, session not saved.")
+            conn.close()
+            exit()
         break
 
     # Generate SQL
+    print("\nGenerating SQL...")
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
@@ -89,6 +135,7 @@ while True:
         results_text += str(row) + "\n"
 
     # Interpret results
+    print("\nInterpreting results...")
     interpretation = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
@@ -123,7 +170,7 @@ os.makedirs(session_name, exist_ok=True)
 # Save JSON
 with open(f"{session_name}/{session_name}.json", "w", encoding="utf-8") as f:
     json.dump({
-        "database": os.getenv("DB_NAME"),
+        "database": selected_db,
         "date": datetime.now().strftime("%d/%m/%Y %H:%M"),
         "questions": session_data
     }, f, ensure_ascii=False, indent=2)
@@ -131,7 +178,7 @@ with open(f"{session_name}/{session_name}.json", "w", encoding="utf-8") as f:
 # Save DOCX
 doc = Document()
 doc.add_heading("Text-to-SQL Session Report", level=1)
-doc.add_paragraph(f"Database: {os.getenv('DB_NAME')}")
+doc.add_paragraph(f"Database: {selected_db}")
 doc.add_paragraph(f"Date: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
 for i, item in enumerate(session_data, 1):
