@@ -2,11 +2,22 @@ import psycopg2
 import anthropic
 from dotenv import load_dotenv
 from docx import Document
+from docx.shared import Pt
 from datetime import datetime
+from copy import deepcopy
+from markdown import markdown
+from html2docx import html2docx
 import os
 import json
 
 load_dotenv()
+
+
+def processa_testo(doc, text):
+    """Convert markdown formatting to proper Word styles."""
+    tmp_doc = Document(html2docx(markdown(text), title=""))
+    for element in tmp_doc.element.body:
+        doc.element.body.append(deepcopy(element))
 
 # Connect to the default postgres db to list available databases
 _conn = psycopg2.connect(
@@ -130,6 +141,16 @@ while True:
         print("Please try rephrasing your question.\n")
         continue
 
+    if not results:
+        print("\nNo results found for this question.\n")
+        session_data.append({
+            "question": question,
+            "sql_query": sql_query,
+            "answer": "No results found.",
+            "timestamp": datetime.now().strftime("%d/%m/%Y %H:%M")
+        })
+        continue
+
     results_text = ", ".join(column_names) + "\n"
     for row in results:
         results_text += str(row) + "\n"
@@ -142,10 +163,10 @@ while True:
         messages=[
             {"role": "user", "content": f"""
             The user asked: "{question}"
-            
+
             The SQL query returned these results:
             {results_text}
-            
+
             Please provide a clear, concise answer in natural language.
             No SQL, no technical details — just a clean human-readable answer.
             """}
@@ -164,7 +185,10 @@ while True:
     })
 
 # Save session
-session_name = input("\nName this session (no extension): ")
+default_session_name = f"{selected_db}_{datetime.now().strftime('%Y-%m-%d')}"
+session_name = input(f"\nName this session (no extension) [{default_session_name}]: ").strip()
+if not session_name:
+    session_name = default_session_name
 os.makedirs(session_name, exist_ok=True)
 
 # Save JSON
@@ -176,20 +200,25 @@ with open(f"{session_name}/{session_name}.json", "w", encoding="utf-8") as f:
     }, f, ensure_ascii=False, indent=2)
 
 # Save DOCX
-doc = Document()
-doc.add_heading("Text-to-SQL Session Report", level=1)
-doc.add_paragraph(f"Database: {selected_db}")
-doc.add_paragraph(f"Date: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+try:
+    doc = Document()
+    doc.add_heading("Text-to-SQL Session Report", level=1)
+    doc.add_paragraph(f"Database: {selected_db}")
+    doc.add_paragraph(f"Date: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
-for i, item in enumerate(session_data, 1):
-    doc.add_heading(f"Question {i}: {item['question']}", level=2)
-    doc.add_heading("SQL Query", level=3)
-    doc.add_paragraph(item["sql_query"])
-    doc.add_heading("Answer", level=3)
-    doc.add_paragraph(item["answer"])
+    for i, item in enumerate(session_data, 1):
+        doc.add_heading(f"Question {i}: {item['question']}", level=2)
+        doc.add_heading("SQL Query", level=3)
+        sql_para = doc.add_paragraph()
+        sql_run = sql_para.add_run(item["sql_query"])
+        sql_run.font.name = 'Courier New'
+        sql_run.font.size = Pt(10)
+        doc.add_heading("Answer", level=3)
+        processa_testo(doc, item["answer"])
 
-doc.save(f"{session_name}/{session_name}.docx")
-
-print(f"\nSession saved in {session_name}/")
+    doc.save(f"{session_name}/{session_name}.docx")
+    print(f"\nSession saved in {session_name}/")
+except Exception as e:
+    print(f"\nFailed to save DOCX: {e}")
 
 conn.close()
