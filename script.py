@@ -74,9 +74,15 @@ while True:
 
     # Execute the query
     cursor = conn.cursor()
-    cursor.execute(sql_query)
-    results = cursor.fetchall()
-    column_names = [desc[0] for desc in cursor.description]
+    try:
+        cursor.execute(sql_query)
+        results = cursor.fetchall()
+        column_names = [desc[0] for desc in cursor.description]
+    except Exception as e:
+        conn.rollback()
+        print(f"\nThe query failed to execute: {e}")
+        print("Please try rephrasing your question.\n")
+        continue
 
     results_text = ", ".join(column_names) + "\n"
     for row in results:
