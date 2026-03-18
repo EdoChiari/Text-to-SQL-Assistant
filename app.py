@@ -229,18 +229,20 @@ with tab_history:
                 st.markdown(item["answer"])
 
         st.divider()
+        include_sql_in_docx = st.toggle("Include SQL in report", value=False)
         default_name = f"{st.session_state.selected_db}_{datetime.now().strftime('%Y-%m-%d')}"
         session_name = st.text_input("Session name", value=default_name)
 
-        def build_docx_bytes():
+        def build_docx_bytes(include_sql=False):
             doc = Document()
             doc.add_heading("Text-to-SQL Session Report", level=1)
             doc.add_paragraph(f"Database: {st.session_state.selected_db}")
             doc.add_paragraph(f"Date: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
             for i, item in enumerate(st.session_state.session_data, 1):
                 doc.add_heading(f"Question {i}: {item['question']}", level=2)
-                doc.add_heading("SQL Query", level=3)
-                doc.add_paragraph(item["sql_query"])
+                if include_sql:
+                    doc.add_heading("SQL Query", level=3)
+                    doc.add_paragraph(item["sql_query"])
                 doc.add_heading("Answer", level=3)
                 html_content = markdown.markdown(item["answer"])
                 tmp_bytes = html2docx(html_content, title="")
@@ -263,13 +265,13 @@ with tab_history:
                         "date": datetime.now().strftime("%d/%m/%Y %H:%M"),
                         "questions": st.session_state.session_data
                     }, f, ensure_ascii=False, indent=2)
-                buf = build_docx_bytes()
+                buf = build_docx_bytes(include_sql=include_sql_in_docx)
                 with open(f"{session_name}/{session_name}.docx", "wb") as f:
                     f.write(buf.read())
                 st.success(f"Session saved in `{session_name}/`")
 
         with col_download:
-            buf = build_docx_bytes()
+            buf = build_docx_bytes(include_sql=include_sql_in_docx)
             st.download_button(
                 label="📄 Download Report (.docx)",
                 data=buf,
