@@ -96,6 +96,8 @@ while True:
             print("No questions asked, session not saved.")
             conn.close()
             exit()
+        include_sql_answer = input("Include SQL queries in the report? (yes/no): ").strip().lower()
+        include_sql_in_docx = include_sql_answer == "yes"
         break
 
     # Generate SQL
@@ -197,8 +199,9 @@ doc.add_paragraph(f"Date: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
 for i, item in enumerate(session_data, 1):
     doc.add_heading(f"Question {i}: {item['question']}", level=2)
-    doc.add_heading("SQL Query", level=3)
-    doc.add_paragraph(item["sql_query"])
+    if include_sql_in_docx:
+        doc.add_heading("SQL Query", level=3)
+        doc.add_paragraph(item["sql_query"])
     doc.add_heading("Answer", level=3)
     html_content = markdown.markdown(item["answer"])
     tmp_bytes = html2docx(html_content, title="")
