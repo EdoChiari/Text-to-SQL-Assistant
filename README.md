@@ -5,6 +5,8 @@ Text-to-SQL Assistant bridges the gap between business questions and database in
 
 Built on top of **Claude AI (Anthropic)** and **PostgreSQL**, it comes with both a **Streamlit web interface** for non-technical users and a **command-line script** for terminal workflows.
 
+![Main Interface](Screenshots/01_main_interface.png)
+
 ---
 
 ## The Problem It Solves
@@ -33,22 +35,39 @@ Session saved as .json + .docx report
 
 ---
 
-## Live Example
+## Query in Action
 
-**Question:** *What are the top 5 best selling products?*
+Ask a question in plain English and get a structured answer in seconds — with the generated SQL visible for full transparency.
+
+![Query in Action](Screenshots/02_query_result.png)
+
+**Example:**
+
+**Question:** *Which are the top 3 sellers by total revenue?*
 
 **Generated SQL:**
 ```sql
-SELECT p.product_name, SUM(oi.quantity) AS total_quantity_sold
-FROM order_items oi
-JOIN products p ON oi.product_id = p.product_id
-GROUP BY p.product_name
-ORDER BY total_quantity_sold DESC
-LIMIT 5;
+SELECT s.seller_id, s.seller_name, SUM(oi.total_sale) AS total_revenue
+FROM sellers s
+JOIN orders o ON s.seller_id = o.seller_id
+JOIN order_items oi ON o.order_id = oi.order_id
+GROUP BY s.seller_id, s.seller_name
+ORDER BY total_revenue DESC
+LIMIT 3;
 ```
 
 **Answer:**
-> The top 5 best-selling products are Soccer Goal (301 units), Dog Bed with Canopy (284 units), Soccer Net (280 units), Sports Goggles (280 units), and Kids' Baseball Mitt (277 units).
+> 1. AnkerDirect — $1,736,429.79
+> 2. Tech Armor — $1,683,915.16
+> 3. AmazonBasics — $1,644,364.36
+
+---
+
+## Session History & Export
+
+Every question, query, and answer is stored in the session history tab. At the end of your session you can download a formatted `.docx` report or save everything to disk as `.json` + `.docx`.
+
+![Session History](Screenshots/03_session_history.png)
 
 ---
 
@@ -58,6 +77,7 @@ LIMIT 5;
 - Natural language → SQL translation via Claude AI
 - Automatic schema discovery across all tables and columns
 - Multi-database support — switch between databases from the sidebar
+- Collapsible schema explorer in the sidebar
 - Error handling for invalid or failing SQL queries — no crashes
 
 **Session management**
@@ -154,3 +174,4 @@ Each session is saved in a dedicated folder:
 - [x] Session export as .docx and .json
 - [x] Streamlit web interface
 - [x] Direct browser download for reports
+- [x] Query history
